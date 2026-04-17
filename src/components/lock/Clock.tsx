@@ -10,13 +10,8 @@ export default function Clock() {
     const update = () => {
       const now = new Date();
       setTime({
-        hours: now.toLocaleTimeString("pl-PL", {
-          hour: "2-digit",
-          hour12: false,
-        }),
-        minutes: now.toLocaleTimeString("pl-PL", {
-          minute: "2-digit",
-        }),
+        hours: now.getHours().toString().padStart(2, "0"),
+        minutes: now.getMinutes().toString().padStart(2, "0"),
       });
       setDate(
         now.toLocaleDateString("pl-PL", {
