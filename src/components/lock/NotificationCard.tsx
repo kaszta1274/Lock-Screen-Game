@@ -12,6 +12,8 @@ interface NotificationCardProps {
   time: string;
   value: number;
   isPenalty?: boolean;
+  isEducational?: boolean;
+  timeout?: number;
   onSwipeLeft: (id: string) => void;
   onSwipeRight: (id: string, value: number) => void;
   onExpire: (id: string) => void;
@@ -27,6 +29,8 @@ export default function NotificationCard({
   time,
   value,
   isPenalty,
+  isEducational = false,
+  timeout = 3000,
   onSwipeLeft,
   onSwipeRight,
   onExpire,
@@ -39,10 +43,12 @@ export default function NotificationCard({
     [-150, 0, 150],
     isPenalty
       ? ["rgba(239, 68, 68, 0.9)", "rgba(239, 68, 68, 0.3)", "rgba(239, 68, 68, 0.9)"]
+      : isEducational
+      ? ["rgba(0, 75, 135, 0.5)", "rgba(255, 255, 255, 0)", "rgba(0, 75, 135, 0.5)"]
       : ["rgba(239, 68, 68, 0.5)", "rgba(255, 255, 255, 0)", "rgba(34, 197, 94, 0.5)"]
   );
 
-  const [timeLeft, setTimeLeft] = React.useState(3000);
+  const [timeLeft, setTimeLeft] = React.useState(timeout);
 
   useEffect(() => {
     if (isPaused) return;
@@ -102,7 +108,7 @@ export default function NotificationCard({
             {appName}
           </span>
           <span className="text-[12px] text-white/40 tabular-nums font-medium">
-            {value > 0 ? `+${value} zł` : `${value} zł`}
+            {isEducational ? "EDUKACJA" : value > 0 ? `+${value} zł` : `${value} zł`}
           </span>
         </div>
       </div>
@@ -120,8 +126,8 @@ export default function NotificationCard({
       {/* Progress bar to visually indicate expiration */}
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
         <motion.div
-           className="h-full bg-red-400/80"
-           animate={{ width: `${(Math.max(timeLeft, 0) / 3000) * 100}%` }}
+           className={isEducational ? "h-full bg-blue-400/80" : "h-full bg-red-400/80"}
+           animate={{ width: `${(Math.max(timeLeft, 0) / timeout) * 100}%` }}
            transition={{ duration: 0.1, ease: "linear" }}
         />
       </div>

@@ -2,7 +2,11 @@
 
 import React from "react";
 
-export default function Clock() {
+interface ClockProps {
+  large?: boolean;
+}
+
+export default function Clock({ large = false }: ClockProps) {
   const [time, setTime] = React.useState({ hours: "", minutes: "" });
   const [date, setDate] = React.useState("");
 
@@ -27,16 +31,16 @@ export default function Clock() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center pt-12 pb-2 clock-shadow select-none">
+    <div className={`flex flex-col items-center ${large ? '' : 'pt-12 pb-2'} clock-shadow select-none`}>
       {/* Subtle time */}
-      <div className="text-3xl font-light leading-none tracking-wide text-white/90">
+      <div className={`${large ? 'text-7xl font-black' : 'text-3xl font-light'} leading-none tracking-tight text-white/90`}>
         {time.hours}
-        <span className="opacity-70">:</span>
+        <span className={large ? 'opacity-100' : 'opacity-70'}>:</span>
         {time.minutes}
       </div>
 
       {/* Subtle date */}
-      <p className="mt-1 text-sm font-medium text-white/60 capitalize tracking-wide">
+      <p className={`mt-2 ${large ? 'text-lg text-white/80' : 'text-sm text-white/60'} font-medium capitalize tracking-wide`}>
         {date}
       </p>
     </div>
