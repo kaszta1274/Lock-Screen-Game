@@ -41,7 +41,7 @@ export default function InvestmentsDrawer({ isOpen, onClose, investments, crypto
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="absolute bottom-0 left-0 right-0 z-50 flex flex-col bg-zinc-900 border-t border-white/10 rounded-t-[2.5rem] h-[80%] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
           >
             <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mt-4 shrink-0" />

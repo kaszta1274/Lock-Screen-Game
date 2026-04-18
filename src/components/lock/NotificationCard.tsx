@@ -15,6 +15,7 @@ interface NotificationCardProps {
   onSwipeLeft: (id: string) => void;
   onSwipeRight: (id: string, value: number) => void;
   onExpire: (id: string) => void;
+  isPaused?: boolean;
 }
 
 export default function NotificationCard({
@@ -29,6 +30,7 @@ export default function NotificationCard({
   onSwipeLeft,
   onSwipeRight,
   onExpire,
+  isPaused = false,
 }: NotificationCardProps) {
   const x = useMotionValue(0);
   const opacity = useTransform(x, [-200, 0, 200], [0.5, 1, 0.5]);
@@ -40,13 +42,22 @@ export default function NotificationCard({
       : ["rgba(239, 68, 68, 0.5)", "rgba(255, 255, 255, 0)", "rgba(34, 197, 94, 0.5)"]
   );
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onExpire(id);
-    }, 3000);
+  const [timeLeft, setTimeLeft] = React.useState(3000);
 
-    return () => clearTimeout(timer);
-  }, [id, onExpire]);
+  useEffect(() => {
+    if (isPaused) return;
+
+    if (timeLeft <= 0) {
+      onExpire(id);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 100);
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, [id, timeLeft, isPaused, onExpire]);
 
   const handleDragEnd = (_: any, info: any) => {
     const offset = info.offset.x;
@@ -72,7 +83,7 @@ export default function NotificationCard({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className={`glass rounded-2xl p-3.5 mx-4 select-none touch-none relative overflow-hidden shrink-0 z-10 border ${isPenalty ? 'border-red-500/50' : 'border-white/10'}`}
+      className={`backdrop-blur-md bg-white/5 shadow-md shadow-black/20 rounded-2xl p-3.5 mx-4 select-none touch-none relative overflow-hidden shrink-0 z-10 border ${isPenalty ? 'border-red-500/50' : 'border-white/10'}`}
     >
       {/* Background Swipe Color Hint */}
       <motion.div 
@@ -82,7 +93,7 @@ export default function NotificationCard({
 
       {/* Header row: icon + app name + time */}
       <div className="flex items-center gap-2.5 mb-1.5">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10 text-white text-sm shrink-0">
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10 text-white text-sm shadow-sm shrink-0">
           {appIcon}
         </div>
 
@@ -109,10 +120,9 @@ export default function NotificationCard({
       {/* Progress bar to visually indicate expiration */}
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
         <motion.div
-           initial={{ width: "100%" }}
-           animate={{ width: "0%" }}
-           transition={{ duration: 3, ease: "linear" }}
            className="h-full bg-red-400/80"
+           animate={{ width: `${(Math.max(timeLeft, 0) / 3000) * 100}%` }}
+           transition={{ duration: 0.1, ease: "linear" }}
         />
       </div>
     </motion.div>

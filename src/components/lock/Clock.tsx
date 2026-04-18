@@ -27,16 +27,16 @@ export default function Clock() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center pt-14 pb-6 clock-shadow select-none">
-      {/* Large time */}
-      <div className="text-[82px] font-extralight leading-none tracking-tight text-white">
+    <div className="flex flex-col items-center pt-12 pb-2 clock-shadow select-none">
+      {/* Subtle time */}
+      <div className="text-3xl font-light leading-none tracking-wide text-white/90">
         {time.hours}
-        <span className="opacity-80">:</span>
+        <span className="opacity-70">:</span>
         {time.minutes}
       </div>
 
-      {/* Date */}
-      <p className="mt-2 text-[17px] font-normal text-white/80 capitalize">
+      {/* Subtle date */}
+      <p className="mt-1 text-sm font-medium text-white/60 capitalize tracking-wide">
         {date}
       </p>
     </div>

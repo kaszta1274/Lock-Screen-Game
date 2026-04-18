@@ -2,7 +2,11 @@
 
 import React from "react";
 
-export default function StatusBar() {
+interface StatusBarProps {
+  batteryLevel?: number;
+}
+
+export default function StatusBar({ batteryLevel = 100 }: StatusBarProps) {
   const [time, setTime] = React.useState("");
 
   React.useEffect(() => {
@@ -61,11 +65,21 @@ export default function StatusBar() {
         </svg>
 
         {/* Battery */}
-        <div className="flex items-center gap-0.5">
-          <div className="relative w-6 h-3 rounded-[3px] border border-white/70 p-[1.5px]">
-            <div className="w-[65%] h-full rounded-[1.5px] bg-green-400" />
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] font-bold mr-0.5">{batteryLevel}%</span>
+          <div className="flex items-center gap-0.5">
+            <div className="relative w-6 h-3 rounded-[3px] border border-white/70 p-[1.5px] bg-black/20">
+              <div 
+                className={`h-full rounded-[1.5px] transition-all duration-300 ${
+                  batteryLevel > 50 ? 'bg-green-400' :
+                  batteryLevel > 20 ? 'bg-yellow-400' :
+                  'bg-red-500'
+                }`}
+                style={{ width: `${batteryLevel}%` }}
+              />
+            </div>
+            <div className="w-[2px] h-1.5 rounded-r-sm bg-white/70" />
           </div>
-          <div className="w-[2px] h-1.5 rounded-r-sm bg-white/70" />
         </div>
       </div>
     </div>

@@ -35,31 +35,32 @@ export default function Home() {
   const penaltyTimeouts = useRef<NodeJS.Timeout[]>([]);
   
   const [isInvestmentsOpen, setIsInvestmentsOpen] = useState(false);
+  const [batteryLevel, setBatteryLevel] = useState(100);
 
-  const isGameOver = budget < 0;
+  const isGameOver = budget < 0 || batteryLevel <= 0;
 
   const { investments, cryptoStatus, actions: investmentActions } = useInvestments(budget, setBudget, isGameOver);
 
   const getPhase = (time: number) => {
-    if (time >= 60) return { name: "Dorosłość", interval: 1000, mult: 3 };
-    if (time >= 30) return { name: "Studia", interval: 1500, mult: 2 };
-    return { name: "Szkoła", interval: 2500, mult: 1 };
+    if (time >= 60) return { name: "Dorosłość", interval: 1300, mult: 3 };
+    if (time >= 30) return { name: "Studia", interval: 1950, mult: 2 };
+    return { name: "Szkoła", interval: 3250, mult: 1 };
   };
 
   const currentPhase = getPhase(timeSurvived);
 
   // TIME LOOP: tracks survived virtual months
   useEffect(() => {
-    if (isGameOver) return;
+    if (isGameOver || isInvestmentsOpen) return;
     const timer = setInterval(() => {
       setTimeSurvived((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, [isGameOver]);
+  }, [isGameOver, isInvestmentsOpen]);
 
   // GAME LOOP: add a new notification based on phase interval
   useEffect(() => {
-    if (isGameOver) return; // Stop spawning when game over
+    if (isGameOver || isInvestmentsOpen) return; // Stop spawning when game over or paused
 
     const timer = setInterval(() => {
       const phaseData = NOTIFICATIONS_DB[currentPhase.name] || NOTIFICATIONS_DB["Szkoła"];
@@ -67,7 +68,7 @@ export default function Home() {
       
       const newNotif = {
         ...randomNotif,
-        value: randomNotif.value * currentPhase.mult,
+        value: randomNotif.value,
         id: Math.random().toString(36).substring(7),
         time: new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }),
         appIcon: getIcon(randomNotif.appName)
@@ -77,7 +78,7 @@ export default function Home() {
     }, currentPhase.interval);
 
     return () => clearInterval(timer);
-  }, [isGameOver, currentPhase.interval, currentPhase.mult, currentPhase.name]);
+  }, [isGameOver, isInvestmentsOpen, currentPhase.interval, currentPhase.mult, currentPhase.name]);
 
   const schedulePenalty = useCallback((notif: any) => {
     const timeout = setTimeout(() => {
@@ -89,6 +90,7 @@ export default function Home() {
         body: notif.penaltyBody || "Zignorowano obowiązkową opłatę!",
         time: new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }),
         value: notif.value * 5,
+        energyEffect: -15,
         isPenalty: true,
       };
       setNotifications((prev) => [penaltyNotif, ...prev]);
@@ -97,15 +99,28 @@ export default function Home() {
     penaltyTimeouts.current.push(timeout);
   }, []);
 
-  const handleSwipeRight = useCallback((id: string, value: number) => {
-    setBudget((prev) => prev + value);
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  const handleSwipeRight = useCallback((id: string) => {
+    setNotifications((prev) => {
+      const notif = prev.find((n) => n.id === id);
+      if (notif) {
+        setBudget((b) => b + notif.value);
+        if (notif.energyEffect) {
+          setBatteryLevel((energy) => Math.min(100, Math.max(0, energy + notif.energyEffect)));
+        }
+      }
+      return prev.filter((n) => n.id !== id);
+    });
   }, []);
 
   const handleSwipeLeft = useCallback((id: string) => {
     setNotifications((prev) => {
       const notif = prev.find((n) => n.id === id);
-      if (notif && notif.isMandatory) schedulePenalty(notif);
+      if (notif) {
+        if (notif.isMandatory) schedulePenalty(notif);
+        if (notif.value < 0 && notif.energyEffect > 0) {
+          setBatteryLevel((energy) => Math.max(0, energy - 5)); // FOMO effect
+        }
+      }
       return prev.filter((n) => n.id !== id);
     });
   }, [schedulePenalty]);
@@ -115,11 +130,12 @@ export default function Home() {
       const notif = prev.find((n) => n.id === id);
       if (notif) {
         if (notif.isPenalty) {
-          setBudget((b) => b + notif.value); // Forced penalty
+          setBudget((b) => b + notif.value);
+          setBatteryLevel((energy) => Math.max(0, energy + (notif.energyEffect || -15)));
         } else if (notif.isMandatory) {
           schedulePenalty(notif);
         } else {
-          setBudget((b) => b - 10); // Standard missing penalty
+          setBudget((b) => b - 10);
         }
       }
       return prev.filter((n) => n.id !== id);
@@ -136,7 +152,7 @@ export default function Home() {
       if (e.key === "ArrowLeft" && !oldestCard.isPenalty) {
         handleSwipeLeft(oldestCard.id);
       } else if (e.key === "ArrowRight") {
-        handleSwipeRight(oldestCard.id, oldestCard.value);
+        handleSwipeRight(oldestCard.id);
       }
     };
 
@@ -155,6 +171,7 @@ export default function Home() {
     penaltyTimeouts.current.forEach(clearTimeout);
     penaltyTimeouts.current = [];
     setBudget(3000);
+    setBatteryLevel(100);
     setNotifications([]);
     setTimeSurvived(0);
   };
@@ -164,7 +181,7 @@ export default function Home() {
       {/* Wallpaper background */}
       <div className="relative w-full h-full wallpaper-gradient">
         {/* Status bar */}
-        <StatusBar />
+        <StatusBar batteryLevel={batteryLevel} />
 
         {isGameOver ? (
           <motion.div 
@@ -172,8 +189,14 @@ export default function Home() {
             animate={{ opacity: 1 }} 
             className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-8 text-center"
           >
-            <h1 className="text-5xl font-black text-red-500 mb-2 tracking-tighter">BANKRUT</h1>
-            <p className="text-white/70 mb-2 font-medium">Twój budżet spadł poniżej zera ({budget} zł).</p>
+            <h1 className="text-5xl font-black text-red-500 mb-2 tracking-tighter">
+              {budget < 0 ? "BANKRUT" : "WYPALENIE"}
+            </h1>
+            <p className="text-white/70 mb-2 font-medium">
+              {budget < 0 
+                ? `Twój budżet spadł poniżej zera (${budget} zł).` 
+                : "Zabrakło Ci sił na dalsze zmagania (Bateria 0%)."}
+            </p>
             <p className="text-white font-bold text-xl mb-8">Czas przetrwania: {timeSurvived} msc</p>
             <button 
               onClick={restartGame}
@@ -184,25 +207,66 @@ export default function Home() {
           </motion.div>
         ) : (
           <>
-            {/* Budget Display */}
-            <div className="flex flex-col items-center mt-6 z-10 relative">
-              <span className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-0.5">
-                Budżet
-              </span>
-              <span className="text-white text-3xl font-bold tracking-tight mix-blend-overlay">
-                {budget} zł
-              </span>
+            {/* Clock & Date */}
+            <div className="w-full">
+              <Clock />
+              
+              {/* Investment Widget */}
+              <div className="flex justify-center mt-2 z-20 relative px-4">
+                <button
+                  onClick={() => setIsInvestmentsOpen(true)}
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-900/60 to-blue-800/40 hover:from-blue-800/70 hover:to-blue-700/50 backdrop-blur-md border border-blue-400/30 rounded-full px-5 py-2.5 shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
+                >
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                      <polyline points="16 7 22 7 22 13" />
+                    </svg>
+                  </div>
+                  <span className="text-white/90 text-[13px] font-semibold tracking-wide">Portfel Inwestycyjny PKO</span>
+                </button>
+              </div>
             </div>
 
-            {/* Clock */}
-            <div className="mt-2 text-center flex flex-col items-center">
-              <Clock />
-              <span className="text-white/60 text-xs font-medium uppercase tracking-widest mt-1">
-                Faza: {currentPhase.name}
+            {/* Budget Display (Directly below date) */}
+            <div className="flex flex-col items-center mt-4 z-10 relative px-6">
+              <span className="text-white/60 text-[10px] font-bold tracking-[0.2em] uppercase mb-1">
+                Aktualne Saldo
               </span>
-              <span className="text-white/80 text-sm font-bold mt-1">
-                Czas przetrwania: {timeSurvived} msc
+              <span className="text-white text-5xl font-black tracking-tighter drop-shadow-lg">
+                {budget} zł
               </span>
+              
+              <div className="w-full max-w-[220px] mt-4 flex flex-col gap-1.5">
+                <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-[0.1em] text-white/60">
+                  <span>Poziom Energii</span>
+                  <span className={batteryLevel <= 20 ? "text-red-400" : batteryLevel <= 50 ? "text-yellow-400" : "text-green-400"}>{batteryLevel}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-black/40 rounded-full border border-white/10 overflow-hidden shadow-inner">
+                  <div 
+                    className={`h-full transition-all duration-500 ease-out ${
+                      batteryLevel > 50 ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.4)]' :
+                      batteryLevel > 20 ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.4)]' :
+                      'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                    }`}
+                    style={{ width: `${batteryLevel}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Timer and Phase */}
+            <div className="mt-6 flex flex-row items-center justify-center gap-4">
+              <div className="bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10">
+                <span className="text-white/90 text-sm font-bold tracking-wide">
+                  Czas: {timeSurvived} sek
+                </span>
+              </div>
+              <div className="bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10">
+                <span className="text-white/80 text-xs font-semibold uppercase tracking-wider">
+                  {currentPhase.name}
+                </span>
+              </div>
             </div>
 
             {/* Notifications */}
@@ -222,25 +286,10 @@ export default function Home() {
                     onSwipeLeft={handleSwipeLeft}
                     onSwipeRight={handleSwipeRight}
                     onExpire={handleExpire}
+                    isPaused={isInvestmentsOpen}
                   />
                 ))}
               </AnimatePresence>
-            </div>
-
-            {/* Apps dock / bottom */}
-            <div className="absolute bottom-6 left-0 right-0 px-8 flex justify-center items-end">
-              <button 
-                onClick={() => setIsInvestmentsOpen(true)}
-                className="flex flex-col items-center gap-1.5 active:scale-95 transition"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20 border border-white/20 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-white/10" />
-                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                  </svg>
-                </div>
-                <span className="text-[11px] font-semibold text-white drop-shadow-md tracking-wide">Inwestycje</span>
-              </button>
             </div>
 
             {/* Swipe hint at bottom */}
