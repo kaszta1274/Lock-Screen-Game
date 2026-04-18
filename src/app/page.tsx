@@ -66,9 +66,9 @@ export default function Home() {
   const { investments, cryptoStatus, actions: investmentActions } = useInvestments(budget, setBudget, isGameOver);
 
   const getPhase = (time: number) => {
-    if (time >= 60) return { name: "Dorosłość", interval: 1800, mult: 3 };
-    if (time >= 30) return { name: "Studia", interval: 2200, mult: 2 };
-    return { name: "Szkoła", interval: 2500, mult: 1 };
+    if (time >= 60) return { name: "Dorosłość", interval: 2500, mult: 3 };
+    if (time >= 30) return { name: "Studia", interval: 3000, mult: 2 };
+    return { name: "Szkoła", interval: 3500, mult: 1 };
   };
 
   const currentPhase = getPhase(timeSurvived);
@@ -79,8 +79,8 @@ export default function Home() {
     const unlocked = checkAndUnlockAchievements({
       timeSurvived,
       budget,
-
-      cryptoStatus: cryptoStatus as any, // Cast if needed
+      batteryLevel,
+      cryptoStatus: cryptoStatus as any,
     });
     
     if (unlocked.length > 0) {
@@ -90,7 +90,7 @@ export default function Home() {
         setCurrentAchievement(null);
       }, 4000);
     }
-  }, [timeSurvived, budget, cryptoStatus, isGameStarted, isGameOver]);
+  }, [timeSurvived, budget, batteryLevel, cryptoStatus, isGameStarted, isGameOver]);
 
   // TIME LOOP: tracks survived virtual months
   useEffect(() => {
@@ -691,7 +691,10 @@ export default function Home() {
             />
 
             {/* Large Battery Display at Bottom */}
-            <div className="absolute bottom-4 left-4 right-4 z-50 bg-gradient-to-r from-black/60 to-black/40 backdrop-blur-md border border-white/20 rounded-2xl p-4">
+            <div 
+              className="absolute left-4 right-4 z-[60] bg-gradient-to-r from-black/60 to-black/40 backdrop-blur-md border border-white/20 rounded-2xl p-4 transition-all duration-500 ease-in-out"
+              style={{ bottom: isInvestmentsOpen ? 'calc(80% + 1rem)' : '1rem' }}
+            >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white/70 text-xs font-bold uppercase tracking-wider">Bateria</span>
                 <span className="text-2xl font-black" style={{

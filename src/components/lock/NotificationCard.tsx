@@ -30,7 +30,7 @@ export default function NotificationCard({
   value,
   isPenalty,
   isEducational = false,
-  timeout = 3000,
+  timeout = 6000,
   onSwipeLeft,
   onSwipeRight,
   onExpire,
@@ -54,25 +54,19 @@ export default function NotificationCard({
   useEffect(() => {
     if (isPaused || hasExpired.current) return;
 
-    if (timeLeft <= 0 && !hasExpired.current) {
-      hasExpired.current = true;
-      onExpire(id);
-      return;
-    }
-
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        const newTime = prev - 100;
-        if (newTime <= 0 && !hasExpired.current) {
-          hasExpired.current = true;
-          onExpire(id);
-        }
-        return Math.max(newTime, 0);
-      });
+      setTimeLeft((prev) => Math.max(prev - 100, 0));
     }, 100);
 
     return () => clearInterval(timer);
-  }, [id, isPaused, onExpire]);
+  }, [isPaused]);
+
+  useEffect(() => {
+    if (timeLeft <= 0 && !hasExpired.current) {
+      hasExpired.current = true;
+      onExpire(id);
+    }
+  }, [timeLeft, id, onExpire]);
 
   const handleDragEnd = (_: any, info: any) => {
     const offset = info.offset.x;
