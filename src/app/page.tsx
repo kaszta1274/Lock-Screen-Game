@@ -12,8 +12,8 @@ import EducationalToast from "@/components/lock/EducationalToast";
 import AchievementPopup from "@/components/lock/AchievementPopup";
 import { NOTIFICATIONS_DB } from "@/lib/notifications";
 import { submitScore, getHighscores, type HighscoreEntry } from "@/lib/highscores";
-import { getAnyRandomTip, type EducationalTip } from "@/lib/educationalTips";
 import { useInvestments } from "@/hooks/useInvestments";
+import { useDecisionTracker } from "@/hooks/useDecisionTracker";
 import { type Achievement, checkAndUnlockAchievements, getUnlockedAchievements, ACHIEVEMENTS } from "@/lib/achievements";
 
 const getIcon = (appName: string) => {
@@ -47,8 +47,9 @@ export default function Home() {
   const [leaderboard, setLeaderboard] = useState<HighscoreEntry[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const hasSubmittedScore = useRef(false);
-  const [gameOverTip, setGameOverTip] = useState<EducationalTip | null>(null);
   const [healthIndex, setHealthIndex] = useState(50);
+  
+  const { trackDecision, getAnalysis, resetTracker } = useDecisionTracker();
   
   const [currentAchievement, setCurrentAchievement] = useState<Achievement | null>(null);
   const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
@@ -59,12 +60,6 @@ export default function Home() {
   }, []);
 
   const isGameOver = budget < 0 || batteryLevel <= 0;
-
-  useEffect(() => {
-    if (isGameOver && !gameOverTip) {
-      setGameOverTip(getAnyRandomTip());
-    }
-  }, [isGameOver, gameOverTip]);
 
   const { investments, cryptoStatus, actions: investmentActions } = useInvestments(budget, setBudget, isGameOver);
 
@@ -177,6 +172,7 @@ export default function Home() {
     setNotifications((prev) => {
       const notif = prev.find((n) => n.id === id);
       if (notif) {
+        trackDecision(notif, "accept");
         if (!notif.isEducational) {
           if (notif.isMandatory) {
             setHealthIndex(prev => Math.min(100, prev + 3));
@@ -201,6 +197,7 @@ export default function Home() {
     setNotifications((prev) => {
       const notif = prev.find((n) => n.id === id);
       if (notif) {
+        trackDecision(notif, "reject");
         if (!notif.isEducational) {
           if (notif.isMandatory) {
             setHealthIndex(prev => Math.max(0, prev - 10)); // missed mandatory
@@ -222,6 +219,7 @@ export default function Home() {
     setNotifications((prev) => {
       const notif = prev.find((n) => n.id === id);
       if (notif) {
+        trackDecision(notif, "expire");
         if (!notif.isEducational) {
           if (notif.isPenalty) {
             setHealthIndex(prev => Math.max(0, prev - 15));
@@ -284,8 +282,8 @@ export default function Home() {
     setTimeSurvived(0);
     setLeaderboard([]);
     setHighlightIndex(-1);
-    setGameOverTip(null);
     setHealthIndex(50);
+    resetTracker();
     setIsGameStarted(false);
   };
 
@@ -426,30 +424,75 @@ export default function Home() {
               </p>
             </motion.div>
 
-            {/* Educational Tip (Game Over) */}
-            {gameOverTip && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 0.4 }}
-                className="w-full max-w-xs mt-6 mb-6 p-4 rounded-xl"
-                style={{
-                  background: "linear-gradient(135deg, rgba(0,75,135,0.7), rgba(0,75,135,0.4))",
-                  border: "1px solid rgba(0,163,224,0.3)",
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
-                }}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xl">{gameOverTip.icon}</span>
-                  <span className="text-[10px] font-extrabold text-[#7dd3fc] uppercase tracking-wider">
-                    Wskazówka od PKO
-                  </span>
+            {/* Analysis Section (Faza 5) */}
+            {(() => {
+              const analysis = getAnalysis();
+              const adviceMap = {
+                impulsive: "Rozważ ograniczenie spontanicznych wydatków. Zastosuj zasadę 24h przed kolejnym drogim zakupem zachcianek.",
+                ignorant: "Zaniedbywanie opłat na czas to najdroższy z możliwych błędów – kary mogą wielokrotnie przewyższyć koszt samego rachunku.",
+                perfect: "Świetne zarządzanie budżetem! Jesteś gotowy jako pełnoprawny Inwestor. Pilnujesz wydatków i mądrze skalujesz przychody.",
+                balanced: "Dobrze kontrolujesz swoje wydatki. Zadbaj tylko o nieco więcej regularnego oszczędzania (minimum 20%)."
+              };
+              
+              return (
+                <div className="w-full max-w-xs mt-6 mb-6">
+                  {/* Zarobki vs Wydatki */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                     <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                       <p className="text-white/50 text-[9px] uppercase font-bold tracking-widest mb-1">Przychody</p>
+                       <p className="text-green-400 font-black text-lg">+{analysis.totalEarned} zł</p>
+                     </div>
+                     <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                       <p className="text-white/50 text-[9px] uppercase font-bold tracking-widest mb-1">Wydatki</p>
+                       <p className="text-red-400 font-black text-lg">-{analysis.totalSpent} zł</p>
+                     </div>
+                  </div>
+                  
+                  {/* Wskazówka Analiza */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5, duration: 0.4 }}
+                    className="w-full p-4 rounded-xl"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(0,75,135,0.7), rgba(0,75,135,0.4))",
+                      border: "1px solid rgba(0,163,224,0.3)",
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xl">🏦</span>
+                      <span className="text-[10px] font-extrabold text-[#7dd3fc] uppercase tracking-wider">
+                        Analiza PKO
+                      </span>
+                    </div>
+                    <p className="text-white/90 text-[13px] leading-snug font-medium">
+                      {adviceMap[analysis.adviceCategory]}
+                    </p>
+                    
+                    {analysis.bestDecision && analysis.bestDecision.value > 0 && (
+                      <div className="mt-3 pt-3 border-t border-white/10">
+                        <p className="text-[10px] text-white/50 uppercase font-bold mb-1">Najlepsza decyzja (dochód):</p>
+                        <p className="text-green-300 text-[11px] font-semibold flex justify-between">
+                          <span>{analysis.bestDecision.title}</span>
+                          <span>+{analysis.bestDecision.value} zł</span>
+                        </p>
+                      </div>
+                    )}
+                    
+                    {analysis.worstDecision && (
+                      <div className="mt-2 pt-2 border-t border-white/10">
+                        <p className="text-[10px] text-white/50 uppercase font-bold mb-1">Największy koszt/kara:</p>
+                        <p className="text-red-300 text-[11px] font-semibold flex justify-between">
+                          <span>{analysis.worstDecision.title}</span>
+                          <span>{analysis.worstDecision.value} zł</span>
+                        </p>
+                      </div>
+                    )}
+                  </motion.div>
                 </div>
-                <p className="text-white/90 text-sm leading-snug font-medium">
-                  {gameOverTip.text}
-                </p>
-              </motion.div>
-            )}
+              );
+            })()}
 
             {/* Twoje Odznaki */}
             <div className="w-full max-w-xs mt-4 mb-4">
