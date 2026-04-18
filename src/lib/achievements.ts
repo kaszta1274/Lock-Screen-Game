@@ -8,7 +8,7 @@ export interface Achievement {
 export const ACHIEVEMENTS: Achievement[] = [
   { id: "absolwent", icon: "🎓", title: "Absolwent", description: "Przetrwaj fazę Szkoła (30s)" },
   { id: "oszczedny", icon: "💰", title: "Oszczędny", description: "Dbaj o budżet: przebij 5000 zł salda" },
-  { id: "strateg", icon: "📊", title: "Strateg", description: "Utrzymaj Zdrowie Finansowe powyżej 85 pkt przez całą grę" },
+  { id: "strateg", icon: "📊", title: "Strateg", description: "Utrzymaj baterię powyżej 85% przez całą grę" },
   { id: "hazardzista", icon: "🎰", title: "Deweloper", description: "Spróbuj szczęścia na rynku Crypto" },
   { id: "survivor", icon: "🔥", title: "Survivor", description: "Przetrwaj ponad 60 sekund (faza Dorosłość)" },
 ];
@@ -16,7 +16,7 @@ export const ACHIEVEMENTS: Achievement[] = [
 export interface GameStateForAchievements {
   timeSurvived: number;
   budget: number;
-  healthIndex: number;
+  batteryLevel: number;
   cryptoStatus: "none" | "invested" | "rugged" | "sold";
 }
 
@@ -54,7 +54,7 @@ export function checkAndUnlockAchievements(state: GameStateForAchievements): Ach
   check("absolwent", state.timeSurvived >= 30);
   check("survivor", state.timeSurvived >= 60);
   check("oszczedny", state.budget >= 5000);
-  check("strateg", state.timeSurvived >= 45 && state.healthIndex >= 85);
+  check("strateg", state.timeSurvived >= 45 && state.batteryLevel >= 85);
   check("hazardzista", state.cryptoStatus === "invested" || state.cryptoStatus === "rugged" || state.cryptoStatus === "sold");
 
   if (newlyUnlocked.length > 0) {

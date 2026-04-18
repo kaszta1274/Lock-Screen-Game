@@ -20,25 +20,25 @@ export default function EducationalToast({ tip, visible }: EducationalToastProps
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
           style={{
             position: "absolute",
-            bottom: "28px",
+            bottom: "120px",
             left: "12px",
             right: "12px",
             zIndex: 60,
-            padding: "12px 14px",
+            padding: "16px 16px",
             borderRadius: "16px",
-            background: "linear-gradient(135deg, rgba(0,75,135,0.85), rgba(0,75,135,0.65))",
+            background: "linear-gradient(135deg, rgba(0,75,135,0.95), rgba(0,75,135,0.75))",
             backdropFilter: "blur(16px)",
-            border: "1px solid rgba(0,163,224,0.3)",
-            boxShadow: "0 8px 32px rgba(0,75,135,0.4), 0 0 0 1px rgba(0,163,224,0.1) inset",
+            border: "2px solid rgba(0,163,224,0.4)",
+            boxShadow: "0 12px 40px rgba(0,75,135,0.5), 0 0 0 1px rgba(0,163,224,0.15) inset",
             display: "flex",
             alignItems: "flex-start",
-            gap: "10px",
+            gap: "12px",
           }}
         >
           {/* Icon */}
           <span
             style={{
-              fontSize: "20px",
+              fontSize: "28px",
               lineHeight: 1.3,
               flexShrink: 0,
             }}
@@ -54,20 +54,20 @@ export default function EducationalToast({ tip, visible }: EducationalToastProps
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "4px",
-                marginBottom: "4px",
-                padding: "2px 8px",
+                marginBottom: "6px",
+                padding: "3px 10px",
                 borderRadius: "100px",
-                background: "rgba(0,163,224,0.2)",
-                border: "1px solid rgba(0,163,224,0.25)",
+                background: "rgba(0,163,224,0.25)",
+                border: "1px solid rgba(0,163,224,0.3)",
               }}
             >
               <span
                 style={{
-                  fontSize: "8px",
+                  fontSize: "9px",
                   fontWeight: 800,
                   color: "#7dd3fc",
                   textTransform: "uppercase",
-                  letterSpacing: "0.1em",
+                  letterSpacing: "0.15em",
                 }}
               >
                 PKO Edukacja
@@ -77,10 +77,10 @@ export default function EducationalToast({ tip, visible }: EducationalToastProps
             {/* Tip text */}
             <p
               style={{
-                fontSize: "11.5px",
+                fontSize: "13px",
                 fontWeight: 500,
-                color: "rgba(255,255,255,0.88)",
-                lineHeight: 1.45,
+                color: "rgba(255,255,255,0.92)",
+                lineHeight: 1.5,
                 margin: 0,
               }}
             >

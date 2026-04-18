@@ -15,6 +15,7 @@ import { submitScore, getHighscores, type HighscoreEntry } from "@/lib/highscore
 import { useInvestments } from "@/hooks/useInvestments";
 import { useDecisionTracker } from "@/hooks/useDecisionTracker";
 import { type Achievement, checkAndUnlockAchievements, getUnlockedAchievements, ACHIEVEMENTS } from "@/lib/achievements";
+import { getRandomTip, type EducationalTip } from "@/lib/educationalTips";
 
 const getIcon = (appName: string) => {
   return (
@@ -40,6 +41,7 @@ export default function Home() {
   const [timeSurvived, setTimeSurvived] = useState(0);
   const penaltyTimeouts = useRef<NodeJS.Timeout[]>([]);
   const chainTimeouts = useRef<NodeJS.Timeout[]>([]);
+  const scheduledPenalties = useRef<Set<string>>(new Set()); // Track which notifications already have penalties scheduled
   
   const [isInvestmentsOpen, setIsInvestmentsOpen] = useState(false);
   const [batteryLevel, setBatteryLevel] = useState(100);
@@ -47,13 +49,13 @@ export default function Home() {
   const [leaderboard, setLeaderboard] = useState<HighscoreEntry[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const hasSubmittedScore = useRef(false);
-  const [healthIndex, setHealthIndex] = useState(50);
   
   const { trackDecision, getAnalysis, resetTracker } = useDecisionTracker();
   
   const [currentAchievement, setCurrentAchievement] = useState<Achievement | null>(null);
-  const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
-  
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);  const [currentTip, setCurrentTip] = useState<EducationalTip | null>(null);
+  const [showTip, setShowTip] = useState(false);
+  const tipTimeoutRef = useRef<NodeJS.Timeout | null>(null);  
   // Load badges on mount
   useEffect(() => {
     setUnlockedBadges(getUnlockedAchievements());
@@ -77,7 +79,7 @@ export default function Home() {
     const unlocked = checkAndUnlockAchievements({
       timeSurvived,
       budget,
-      healthIndex,
+
       cryptoStatus: cryptoStatus as any, // Cast if needed
     });
     
@@ -88,7 +90,7 @@ export default function Home() {
         setCurrentAchievement(null);
       }, 4000);
     }
-  }, [timeSurvived, budget, healthIndex, cryptoStatus, isGameStarted, isGameOver]);
+  }, [timeSurvived, budget, cryptoStatus, isGameStarted, isGameOver]);
 
   // TIME LOOP: tracks survived virtual months
   useEffect(() => {
@@ -130,7 +132,16 @@ export default function Home() {
   }, [isGameStarted, isGameOver, isInvestmentsOpen, currentPhase.interval, currentPhase.mult, currentPhase.name]);
 
   const schedulePenalty = useCallback((notif: any) => {
+    // Skip if penalty already scheduled for this notification
+    if (scheduledPenalties.current.has(notif.id)) return;
+    
+    scheduledPenalties.current.add(notif.id);
+    
     const timeout = setTimeout(() => {
+      // Zmniejszona kara: 3x zamiast 5x, zależy od fazy gry
+      const phase = getPhase(timeSurvived);
+      const penaltyMultiplier = phase.name === "Dorosłość" ? 2.5 : phase.name === "Studia" ? 2.2 : 2;
+      
       const penaltyNotif = {
         id: Math.random().toString(36).substring(7),
         appName: "KARA!",
@@ -138,12 +149,13 @@ export default function Home() {
         title: notif.penaltyTitle || "KARA!",
         body: notif.penaltyBody || "Zignorowano obowiązkową opłatę!",
         time: new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }),
-        value: notif.value * 5,
+        value: Math.round(notif.value * penaltyMultiplier),
         energyEffect: -15,
         isPenalty: true,
       };
       setNotifications((prev) => [penaltyNotif, ...prev]);
-    }, 12000); // 12s penalty delay
+      scheduledPenalties.current.delete(notif.id); // Clear the flag when penalty is created
+    }, 25000); // 25s penalty delay - więcej czasu na reagowanie
     
     penaltyTimeouts.current.push(timeout);
   }, []);
@@ -175,23 +187,35 @@ export default function Home() {
         trackDecision(notif, "accept");
         if (!notif.isEducational) {
           if (notif.isMandatory) {
-            setHealthIndex(prev => Math.min(100, prev + 3));
+            setBatteryLevel(prev => Math.min(100, prev + 5)); // mandatory accepted = good
           } else if (notif.value < 0) {
-            setHealthIndex(prev => Math.max(0, prev - 2));
+            setBatteryLevel(prev => Math.max(0, prev - 15)); // optional expense accepted = battery drain
           } else if (notif.value > 0) {
-            setHealthIndex(prev => Math.min(100, prev + 1));
+            setBatteryLevel(prev => Math.min(100, prev + 5)); // optional income accepted = good
           }
           
           setBudget((b) => b + notif.value);
-          if (notif.energyEffect) {
+          // Obowiązkowe opłaty nie wpływają na energię baterii - to tylko dla opcjonalnych wydatków
+          if (notif.energyEffect && !notif.isMandatory && !notif.isPenalty) {
             setBatteryLevel((energy) => Math.min(100, Math.max(0, energy + notif.energyEffect)));
           }
           scheduleChainEvents(notif, "accepted");
+          
+          // Show educational tip after accepting
+          const tip = getRandomTip(notif.appName, "accept");
+          if (tip) {
+            setCurrentTip(tip);
+            setShowTip(true);
+            if (tipTimeoutRef.current) clearTimeout(tipTimeoutRef.current);
+            tipTimeoutRef.current = setTimeout(() => {
+              setShowTip(false);
+            }, 4500);
+          }
         }
       }
       return prev.filter((n) => n.id !== id);
     });
-  }, [scheduleChainEvents]);
+  }, [scheduleChainEvents, trackDecision]);
 
   const handleSwipeLeft = useCallback((id: string) => {
     setNotifications((prev) => {
@@ -200,42 +224,67 @@ export default function Home() {
         trackDecision(notif, "reject");
         if (!notif.isEducational) {
           if (notif.isMandatory) {
-            setHealthIndex(prev => Math.max(0, prev - 10)); // missed mandatory
+            setBatteryLevel(prev => Math.max(0, prev - 20)); // missed mandatory = big drain
             schedulePenalty(notif);
           } else if (notif.value < 0) {
-             setHealthIndex(prev => Math.min(100, prev + 2)); // avoided optional expense
+             setBatteryLevel(prev => Math.min(100, prev + 5)); // avoided optional expense = good
           }
           if (notif.value < 0 && notif.energyEffect > 0) {
             setBatteryLevel((energy) => Math.max(0, energy - 5)); // FOMO effect
           }
           scheduleChainEvents(notif, "rejected");
+          
+          // Show educational tip after rejecting
+          const tip = getRandomTip(notif.appName, "reject");
+          if (tip) {
+            setCurrentTip(tip);
+            setShowTip(true);
+            if (tipTimeoutRef.current) clearTimeout(tipTimeoutRef.current);
+            tipTimeoutRef.current = setTimeout(() => {
+              setShowTip(false);
+            }, 4500);
+          }
         }
       }
+      // Mark as handled by removing immediately to prevent double handling
       return prev.filter((n) => n.id !== id);
     });
-  }, [schedulePenalty, scheduleChainEvents]);
+  }, [scheduleChainEvents, schedulePenalty, trackDecision]);
 
   const handleExpire = useCallback((id: string) => {
     setNotifications((prev) => {
       const notif = prev.find((n) => n.id === id);
-      if (notif) {
-        trackDecision(notif, "expire");
-        if (!notif.isEducational) {
-          if (notif.isPenalty) {
-            setHealthIndex(prev => Math.max(0, prev - 15));
-            setBudget((b) => b + notif.value);
-            setBatteryLevel((energy) => Math.max(0, energy + (notif.energyEffect || -15)));
-          } else if (notif.isMandatory) {
-            setHealthIndex(prev => Math.max(0, prev - 10));
-            schedulePenalty(notif);
-          } else {
-            setBudget((b) => b - 10);
-          }
+      // Only handle if notification still exists (prevents double handling)
+      if (!notif) return prev;
+      
+      trackDecision(notif, "expire");
+      if (!notif.isEducational) {
+        if (notif.isPenalty) {
+          // Penalty expired - accept it and battery takes big hit
+          setBatteryLevel(prev => Math.max(0, prev - 30)); // penalty = massive drain
+          setBudget((b) => b + notif.value);
+        } else if (notif.isMandatory && !notif.isPenalty) {
+          // Only schedule penalty if it's a mandatory notification (not already a penalty)
+          setBatteryLevel(prev => Math.max(0, prev - 20)); // ignored mandatory = big drain
+          schedulePenalty(notif);
+        } else {
+          setBudget((b) => b - 10);
+        }
+        
+        // Show educational tip after expiring
+        const tip = getRandomTip(notif.appName, "expire");
+        if (tip) {
+          setCurrentTip(tip);
+          setShowTip(true);
+          if (tipTimeoutRef.current) clearTimeout(tipTimeoutRef.current);
+          tipTimeoutRef.current = setTimeout(() => {
+            setShowTip(false);
+          }, 4500);
         }
       }
       return prev.filter((n) => n.id !== id);
     });
-  }, [schedulePenalty]);
+  }, [schedulePenalty, trackDecision]);
 
   // KEYBOARD SUPPORT: swipe oldest notification with arrows
   useEffect(() => {
@@ -275,6 +324,8 @@ export default function Home() {
     penaltyTimeouts.current = [];
     chainTimeouts.current.forEach(clearTimeout);
     chainTimeouts.current = [];
+    scheduledPenalties.current.clear(); // Clear pending penalties tracking
+    if (tipTimeoutRef.current) clearTimeout(tipTimeoutRef.current);
     hasSubmittedScore.current = false;
     setBudget(3000);
     setBatteryLevel(100);
@@ -282,7 +333,8 @@ export default function Home() {
     setTimeSurvived(0);
     setLeaderboard([]);
     setHighlightIndex(-1);
-    setHealthIndex(50);
+    setCurrentTip(null);
+    setShowTip(false);
     resetTracker();
     setIsGameStarted(false);
   };
@@ -587,14 +639,7 @@ export default function Home() {
                   {currentPhase.name}
                 </span>
               </div>
-              <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-1.5">
-                <span className="text-white/60 text-[10px] font-bold uppercase tracking-wider">
-                  Zdrowie
-                </span>
-                <span className={`text-sm font-black ${healthIndex >= 80 ? 'text-green-400' : healthIndex >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {healthIndex}
-                </span>
-              </div>
+
             </div>
 
             {/* Notifications */}
@@ -634,6 +679,9 @@ export default function Home() {
               />
             </div>
 
+            {/* Educational Tip Toast */}
+            <EducationalToast tip={currentTip} visible={showTip} />
+
             <InvestmentsDrawer 
               isOpen={isInvestmentsOpen}
               onClose={() => setIsInvestmentsOpen(false)}
@@ -641,6 +689,29 @@ export default function Home() {
               cryptoStatus={cryptoStatus}
               actions={investmentActions}
             />
+
+            {/* Large Battery Display at Bottom */}
+            <div className="absolute bottom-4 left-4 right-4 z-50 bg-gradient-to-r from-black/60 to-black/40 backdrop-blur-md border border-white/20 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-white/70 text-xs font-bold uppercase tracking-wider">Bateria</span>
+                <span className="text-2xl font-black" style={{
+                  color: batteryLevel > 50 ? '#4ade80' : batteryLevel > 20 ? '#facc15' : '#ef4444'
+                }}>
+                  {batteryLevel}%
+                </span>
+              </div>
+              <div className="w-full h-3 rounded-full bg-white/10 overflow-hidden border border-white/20">
+                <div 
+                  className="h-full transition-all duration-300 rounded-full" 
+                  style={{
+                    width: `${batteryLevel}%`,
+                    background: batteryLevel > 50 ? 'linear-gradient(90deg, #22c55e, #4ade80)' : 
+                                batteryLevel > 20 ? 'linear-gradient(90deg, #eab308, #facc15)' :
+                                'linear-gradient(90deg, #dc2626, #ef4444)'
+                  }}
+                />
+              </div>
+            </div>
           </>
         )}
       </div>

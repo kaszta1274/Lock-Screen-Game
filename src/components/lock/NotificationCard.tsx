@@ -49,21 +49,30 @@ export default function NotificationCard({
   );
 
   const [timeLeft, setTimeLeft] = React.useState(timeout);
+  const hasExpired = React.useRef(false);
 
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || hasExpired.current) return;
 
-    if (timeLeft <= 0) {
+    if (timeLeft <= 0 && !hasExpired.current) {
+      hasExpired.current = true;
       onExpire(id);
       return;
     }
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 100);
+      setTimeLeft((prev) => {
+        const newTime = prev - 100;
+        if (newTime <= 0 && !hasExpired.current) {
+          hasExpired.current = true;
+          onExpire(id);
+        }
+        return Math.max(newTime, 0);
+      });
     }, 100);
 
     return () => clearInterval(timer);
-  }, [id, timeLeft, isPaused, onExpire]);
+  }, [id, isPaused, onExpire]);
 
   const handleDragEnd = (_: any, info: any) => {
     const offset = info.offset.x;

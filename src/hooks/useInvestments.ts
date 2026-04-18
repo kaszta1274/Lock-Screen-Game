@@ -16,6 +16,15 @@ export function useInvestments(
     etf: 0,
     crypto: 0,
   });
+  
+  // Reset investments when game ends
+  useEffect(() => {
+    if (isGameOver) {
+      // Withdraw all investments and add to budget before reset
+      setBudget((prev) => prev + investments.lokata + investments.etf + investments.crypto);
+      setInvestments({ lokata: 0, etf: 0, crypto: 0 });
+    }
+  }, [isGameOver, investments.lokata, investments.etf, investments.crypto, setBudget]);
 
   const [cryptoStatus, setCryptoStatus] = useState<string>("");
 
